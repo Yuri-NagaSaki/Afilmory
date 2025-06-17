@@ -8,14 +8,13 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 RUN corepack enable
-RUN apk add --no-cache perl
 
 # -----------------
 # Builder stage
 # -----------------
 FROM base AS builder
 
-RUN apk update && apk add --no-cache git
+RUN apk update && apk add --no-cache git perl
 COPY . .
 RUN sh ./scripts/preinstall.sh
 # Install all dependencies
