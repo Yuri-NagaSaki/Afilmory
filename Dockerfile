@@ -8,6 +8,7 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 RUN corepack enable
+RUN apk add --no-cache perl
 
 # -----------------
 # Builder stage
