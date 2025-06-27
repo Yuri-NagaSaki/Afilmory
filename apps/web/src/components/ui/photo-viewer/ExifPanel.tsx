@@ -1,12 +1,14 @@
 import './PhotoViewer.css'
 
-import type { PickedExif } from '@afilmory/data'
+import type { PhotoManifestItem, PickedExif } from '@afilmory/builder'
 import { isNil } from 'es-toolkit/compat'
+import { useAtomValue } from 'jotai'
 import { m } from 'motion/react'
 import type { FC } from 'react'
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { isExiftoolLoadedAtom } from '~/atoms/app'
 import { ScrollArea } from '~/components/ui/scroll-areas/ScrollArea'
 import { useMobile } from '~/hooks/useMobile'
 import {
@@ -18,13 +20,14 @@ import {
 } from '~/icons'
 import { getImageFormat } from '~/lib/image-utils'
 import { Spring } from '~/lib/spring'
-import type { PhotoManifest } from '~/types/photo'
 
 import { MotionButtonBase } from '../button'
 import { formatExifData, Row } from './formatExifData'
+import { HistogramChart } from './HistogramChart'
+import { RawExifViewer } from './RawExifViewer'
 
 export const ExifPanel: FC<{
-  currentPhoto: PhotoManifest
+  currentPhoto: PhotoManifestItem
   exifData: PickedExif | null
 
   onClose?: () => void
@@ -32,7 +35,7 @@ export const ExifPanel: FC<{
   const { t } = useTranslation()
   const isMobile = useMobile()
   const formattedExifData = formatExifData(exifData)
-
+  const isExiftoolLoaded = useAtomValue(isExiftoolLoadedAtom)
   // 使用通用的图片格式提取函数
   const imageFormat = getImageFormat(
     currentPhoto.originalUrl || currentPhoto.s3Key || '',
@@ -42,9 +45,9 @@ export const ExifPanel: FC<{
     <m.div
       className={`${
         isMobile
-          ? 'exif-panel-mobile fixed right-0 bottom-0 left-0 max-h-[60vh] w-full rounded-t-2xl backdrop-blur-[70px]'
+          ? 'exif-panel-mobile fixed right-0 bottom-0 left-0 z-10 max-h-[60vh] w-full rounded-t-2xl backdrop-blur-[70px]'
           : 'w-80 shrink-0'
-      } bg-material-medium z-10 flex flex-col text-white`}
+      } bg-material-medium flex flex-col text-white`}
       initial={{
         opacity: 0,
         ...(isMobile ? { y: 100 } : { x: 100 }),
@@ -63,6 +66,9 @@ export const ExifPanel: FC<{
         <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold`}>
           {t('exif.header.title')}
         </h3>
+        {!isMobile && isExiftoolLoaded && (
+          <RawExifViewer currentPhoto={currentPhoto} />
+        )}
         {isMobile && onClose && (
           <button
             type="button"
@@ -206,7 +212,7 @@ export const ExifPanel: FC<{
 
             {/* 标签信息 - 移到基本信息 section 内 */}
             {currentPhoto.tags && currentPhoto.tags.length > 0 && (
-              <div className="mt-3">
+              <div className="mt-3 mb-3">
                 <h4 className="mb-2 text-sm font-medium text-white/80">
                   {t('exif.tags')}
                 </h4>
@@ -231,6 +237,59 @@ export const ExifPanel: FC<{
               </div>
             )}
           </div>
+
+          {/* 影调分析和直方图 */}
+          {currentPhoto.toneAnalysis && (
+            <div>
+              <h4 className="mb-2 text-sm font-medium text-white/80">
+                {t('exif.tone.analysis.title')}
+              </h4>
+              <div>
+                {/* 影调信息 */}
+                <Row
+                  label={t('exif.tone.type')}
+                  value={(() => {
+                    const toneTypeMap = {
+                      'low-key': t('exif.tone.low-key'),
+                      'high-key': t('exif.tone.high-key'),
+                      normal: t('exif.tone.normal'),
+                      'high-contrast': t('exif.tone.high-contrast'),
+                    }
+                    return (
+                      toneTypeMap[currentPhoto.toneAnalysis!.toneType] ||
+                      currentPhoto.toneAnalysis!.toneType
+                    )
+                  })()}
+                />
+                <div className="mt-1 mb-3 grid grid-cols-2 gap-x-2 gap-y-1 text-sm">
+                  <Row
+                    label={t('exif.brightness.title')}
+                    value={`${currentPhoto.toneAnalysis.brightness}%`}
+                  />
+                  <Row
+                    label={t('exif.contrast.title')}
+                    value={`${currentPhoto.toneAnalysis.contrast}%`}
+                  />
+                  <Row
+                    label={t('exif.shadow.ratio')}
+                    value={`${Math.round(currentPhoto.toneAnalysis.shadowRatio * 100)}%`}
+                  />
+                  <Row
+                    label={t('exif.highlight.ratio')}
+                    value={`${Math.round(currentPhoto.toneAnalysis.highlightRatio * 100)}%`}
+                  />
+                </div>
+
+                {/* 直方图 */}
+                <div className="mb-3">
+                  <div className="mb-2 text-xs font-medium text-white/70">
+                    {t('exif.histogram')}
+                  </div>
+                  <HistogramChart toneAnalysis={currentPhoto.toneAnalysis} />
+                </div>
+              </div>
+            </div>
+          )}
 
           {formattedExifData && (
             <Fragment>
